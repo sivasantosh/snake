@@ -86,28 +86,16 @@ update msg model =
 
 
 getNewDirection ( direction, dirty ) code =
-    if (dirty) then
+    if dirty then
         Nothing
-    else if (code == 37) then
-        if (direction /= RIGHT) && (direction /= LEFT) then
-            Just LEFT
-        else
-            Nothing
-    else if (code == 39) then
-        if (direction /= LEFT) && (direction /= RIGHT) then
-            Just RIGHT
-        else
-            Nothing
-    else if (code == 38) then
-        if (direction /= DOWN) && (direction /= UP) then
-            Just UP
-        else
-            Nothing
-    else if (code == 40) then
-        if (direction /= UP) && (direction /= DOWN) then
-            Just DOWN
-        else
-            Nothing
+    else if (code == 37) && (direction /= RIGHT) && (direction /= LEFT) then
+        Just LEFT
+    else if (code == 39) && (direction /= LEFT) && (direction /= RIGHT) then
+        Just RIGHT
+    else if (code == 38) && (direction /= DOWN) && (direction /= UP) then
+        Just UP
+    else if (code == 40) && (direction /= UP) && (direction /= DOWN) then
+        Just DOWN
     else
         Nothing
 
@@ -174,8 +162,11 @@ view model =
         gameHeight =
             model.rows * cellWidth
     in
-        svg [ viewBox 0 0 gameWidth gameHeight, width (px gameWidth), height (px gameHeight) ]
-            (drawSnake model.snakebody)
+        div []
+            [ svg [ viewBox 0 0 gameWidth gameHeight, width (px gameWidth), height (px gameHeight) ]
+                (drawSnake model.snakebody)
+            , pre [] [ text (toString model) ]
+            ]
 
 
 drawSnake snakebody =
