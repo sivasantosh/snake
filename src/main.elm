@@ -7,6 +7,7 @@ import TypedSvg.Types exposing (..)
 import Color exposing (..)
 import Time exposing (..)
 import Keyboard
+import Random
 
 
 main =
@@ -20,6 +21,10 @@ main =
 
 cellWidth =
     30
+
+
+foodLifeLength =
+    10
 
 
 type SnakeDirection
@@ -43,6 +48,7 @@ type alias Model =
     , tickTime : Float
     , dirtyDirection : ( SnakeDirection, Dirty )
     , snakebody : List SnakeNode
+    , food : ( Float, Float, Int )
     }
 
 
@@ -52,18 +58,24 @@ initModel =
     , tickTime = second
     , dirtyDirection = ( DOWN, False )
     , snakebody = [ ( 0, 2 ), ( 0, 1 ), ( 0, 0 ) ]
+    , food = ( 5, 5, foodLifeLength )
     }
 
 
 init =
     ( initModel
-    , Cmd.none
+    , generateNewFood
     )
+
+
+generateNewFood =
+    (Random.generate NewFood (Random.pair (Random.int 0 (initModel.cols - 1)) (Random.int 0 (initModel.rows - 1))))
 
 
 type Msg
     = Tick
     | KeyDown Keyboard.KeyCode
+    | NewFood ( Int, Int )
 
 
 update msg model =
@@ -72,8 +84,12 @@ update msg model =
             ( { model
                 | snakebody = (moveSnake model.dirtyDirection model.snakebody model.rows model.cols)
                 , dirtyDirection = ( (Tuple.first model.dirtyDirection), False )
+                , food = decrementFoodTick model.food
               }
-            , Cmd.none
+            , if (isFoodTickZero model.food) then
+                generateNewFood
+              else
+                Cmd.none
             )
 
         KeyDown code ->
@@ -83,6 +99,17 @@ update msg model =
 
                 Just newDirection ->
                     ( { model | dirtyDirection = ( newDirection, True ) }, Cmd.none )
+
+        NewFood ( posx, posy ) ->
+            ( { model | food = ( (toFloat posx), (toFloat posy), foodLifeLength ) }, Cmd.none )
+
+
+isFoodTickZero ( _, _, tick ) =
+    tick == 0
+
+
+decrementFoodTick ( posx, posy, tick ) =
+    ( posx, posy, tick - 1 )
 
 
 getNewDirection ( direction, dirty ) code =
@@ -164,9 +191,13 @@ view model =
     in
         div []
             [ svg [ viewBox 0 0 gameWidth gameHeight, width (px gameWidth), height (px gameHeight) ]
-                (drawSnake model.snakebody)
+                (drawBoard model.snakebody model.food)
             , pre [] [ text (toString model) ]
             ]
+
+
+drawBoard snakebody food =
+    (drawSnake snakebody) ++ [ (drawFood food) ]
 
 
 drawSnake snakebody =
@@ -187,8 +218,29 @@ drawSnakeNode ( row, col ) =
         rect
             [ x (px (nodePosX + gap))
             , y (px (nodePosY + gap))
-            , width (px (cellWidth - gap))
-            , height (px (cellWidth - gap))
+            , width (px (cellWidth - 2 * gap))
+            , height (px (cellWidth - 2 * gap))
             , fill Color.black
+            ]
+            []
+
+
+drawFood ( posx, posy, _ ) =
+    let
+        newPosX =
+            posx * cellWidth
+
+        newPosY =
+            posy * cellWidth
+
+        gap =
+            5
+    in
+        rect
+            [ x (px (newPosX + gap))
+            , y (px (newPosY + gap))
+            , width (px (cellWidth - 2 * gap))
+            , height (px (cellWidth - 2 * gap))
+            , fill Color.green
             ]
             []
