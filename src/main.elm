@@ -33,11 +33,15 @@ type alias SnakeNode =
     ( Int, Int )
 
 
+type alias Dirty =
+    Bool
+
+
 type alias Model =
     { rows : Int
     , cols : Int
     , tickTime : Float
-    , direction : SnakeDirection
+    , dirtyDirection : ( SnakeDirection, Dirty )
     , snakebody : List SnakeNode
     }
 
@@ -46,7 +50,7 @@ initModel =
     { rows = 10
     , cols = 10
     , tickTime = second
-    , direction = DOWN
+    , dirtyDirection = ( DOWN, False )
     , snakebody = [ ( 0, 2 ), ( 0, 1 ), ( 0, 0 ) ]
     }
 
@@ -65,42 +69,42 @@ type Msg
 update msg model =
     case msg of
         Tick ->
-            ( { model | snakebody = (moveSnake model.direction model.snakebody model.rows model.cols) }, Cmd.none )
+            ( { model
+                | snakebody = (moveSnake model.dirtyDirection model.snakebody model.rows model.cols)
+                , dirtyDirection = ( (Tuple.first model.dirtyDirection), False )
+              }
+            , Cmd.none
+            )
 
         KeyDown code ->
-            case (getNewDirection model.direction code) of
+            case (getNewDirection model.dirtyDirection code) of
                 Nothing ->
                     ( model, Cmd.none )
 
                 Just newDirection ->
-                    ( { model | direction = newDirection }, Cmd.none )
+                    ( { model | dirtyDirection = ( newDirection, True ) }, Cmd.none )
 
 
-
--- there should be a way to control when the direction change is applied
--- by typing quickly we can make the snake go in the opposite direction
--- for example right to left or up to down.
--- when the snake is moving in right direction, press quickly down and left.
-
-
-getNewDirection direction code =
-    if (code == 37) then
-        if (direction /= RIGHT) then
+getNewDirection ( direction, dirty ) code =
+    if (dirty) then
+        Nothing
+    else if (code == 37) then
+        if (direction /= RIGHT) && (direction /= LEFT) then
             Just LEFT
         else
             Nothing
     else if (code == 39) then
-        if (direction /= LEFT) then
+        if (direction /= LEFT) && (direction /= RIGHT) then
             Just RIGHT
         else
             Nothing
     else if (code == 38) then
-        if (direction /= DOWN) then
+        if (direction /= DOWN) && (direction /= UP) then
             Just UP
         else
             Nothing
     else if (code == 40) then
-        if (direction /= UP) then
+        if (direction /= UP) && (direction /= DOWN) then
             Just DOWN
         else
             Nothing
@@ -108,7 +112,7 @@ getNewDirection direction code =
         Nothing
 
 
-moveSnake direction snakebody maxRows maxCols =
+moveSnake ( direction, _ ) snakebody maxRows maxCols =
     let
         newHead pos ( a, b ) =
             case pos of
