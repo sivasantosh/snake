@@ -1,13 +1,13 @@
 module Main exposing (..)
 
+import Color exposing (..)
 import Html exposing (..)
+import Keyboard
+import Random
+import Time exposing (..)
 import TypedSvg exposing (..)
 import TypedSvg.Attributes exposing (..)
 import TypedSvg.Types exposing (..)
-import Color exposing (..)
-import Time exposing (..)
-import Keyboard
-import Random
 
 
 main =
@@ -69,7 +69,7 @@ init =
 
 
 generateNewFood =
-    (Random.generate NewFood (Random.pair (Random.int 0 (initModel.cols - 1)) (Random.int 0 (initModel.rows - 1))))
+    Random.generate NewFood (Random.pair (Random.int 0 (initModel.cols - 1)) (Random.int 0 (initModel.rows - 1)))
 
 
 type Msg
@@ -82,18 +82,18 @@ update msg model =
     case msg of
         Tick ->
             ( { model
-                | snakebody = (moveSnake model.dirtyDirection model.snakebody model.rows model.cols)
-                , dirtyDirection = ( (Tuple.first model.dirtyDirection), False )
+                | snakebody = moveSnake model.dirtyDirection model.snakebody model.rows model.cols
+                , dirtyDirection = ( Tuple.first model.dirtyDirection, False )
                 , food = decrementFoodTick model.food
               }
-            , if (isFoodTickZero model.food) then
+            , if isFoodTickZero model.food then
                 generateNewFood
               else
                 Cmd.none
             )
 
         KeyDown code ->
-            case (getNewDirection model.dirtyDirection code) of
+            case getNewDirection model.dirtyDirection code of
                 Nothing ->
                     ( model, Cmd.none )
 
@@ -101,7 +101,7 @@ update msg model =
                     ( { model | dirtyDirection = ( newDirection, True ) }, Cmd.none )
 
         NewFood ( posx, posy ) ->
-            ( { model | food = ( (toFloat posx), (toFloat posy), foodLifeLength ) }, Cmd.none )
+            ( { model | food = ( toFloat posx, toFloat posy, foodLifeLength ) }, Cmd.none )
 
 
 isFoodTickZero ( _, _, tick ) =
@@ -140,41 +140,41 @@ moveSnake ( direction, _ ) snakebody maxRows maxCols =
                             y + b
 
                         nx1 =
-                            if (nx >= maxCols) then
+                            if nx >= maxCols then
                                 0
-                            else if (nx < 0) then
-                                (maxCols - 1)
+                            else if nx < 0 then
+                                maxCols - 1
                             else
                                 nx
 
                         ny1 =
-                            if (ny >= maxRows) then
+                            if ny >= maxRows then
                                 0
-                            else if (ny < 0) then
-                                (maxRows - 1)
+                            else if ny < 0 then
+                                maxRows - 1
                             else
                                 ny
                     in
-                        ( nx1, ny1 )
+                    ( nx1, ny1 )
 
                 Nothing ->
                     ( 0, 0 )
 
         newSnakeBody ( a, b ) =
-            [ newHead (List.head snakebody) ( a, b ) ] ++ (List.take ((List.length snakebody) - 1) snakebody)
+            [ newHead (List.head snakebody) ( a, b ) ] ++ List.take (List.length snakebody - 1) snakebody
     in
-        case direction of
-            LEFT ->
-                newSnakeBody ( 0, -1 )
+    case direction of
+        LEFT ->
+            newSnakeBody ( 0, -1 )
 
-            RIGHT ->
-                newSnakeBody ( 0, 1 )
+        RIGHT ->
+            newSnakeBody ( 0, 1 )
 
-            UP ->
-                newSnakeBody ( -1, 0 )
+        UP ->
+            newSnakeBody ( -1, 0 )
 
-            DOWN ->
-                newSnakeBody ( 1, 0 )
+        DOWN ->
+            newSnakeBody ( 1, 0 )
 
 
 subscriptions model =
@@ -189,15 +189,15 @@ view model =
         gameHeight =
             model.rows * cellWidth
     in
-        div []
-            [ svg [ viewBox 0 0 gameWidth gameHeight, width (px gameWidth), height (px gameHeight) ]
-                (drawBoard model.snakebody model.food)
-            , pre [] [ text (toString model) ]
-            ]
+    div []
+        [ svg [ viewBox 0 0 gameWidth gameHeight, width (px gameWidth), height (px gameHeight) ]
+            (drawBoard model.snakebody model.food)
+        , pre [] [ text (toString model) ]
+        ]
 
 
 drawBoard snakebody food =
-    (drawSnake snakebody) ++ [ (drawFood food) ]
+    drawSnake snakebody ++ [ drawFood food ]
 
 
 drawSnake snakebody =
@@ -215,14 +215,14 @@ drawSnakeNode ( row, col ) =
         gap =
             1
     in
-        rect
-            [ x (px (nodePosX + gap))
-            , y (px (nodePosY + gap))
-            , width (px (cellWidth - 2 * gap))
-            , height (px (cellWidth - 2 * gap))
-            , fill Color.black
-            ]
-            []
+    rect
+        [ x (px (nodePosX + gap))
+        , y (px (nodePosY + gap))
+        , width (px (cellWidth - 2 * gap))
+        , height (px (cellWidth - 2 * gap))
+        , fill Color.black
+        ]
+        []
 
 
 drawFood ( posx, posy, _ ) =
@@ -236,11 +236,11 @@ drawFood ( posx, posy, _ ) =
         gap =
             5
     in
-        rect
-            [ x (px (newPosX + gap))
-            , y (px (newPosY + gap))
-            , width (px (cellWidth - 2 * gap))
-            , height (px (cellWidth - 2 * gap))
-            , fill Color.green
-            ]
-            []
+    rect
+        [ x (px (newPosX + gap))
+        , y (px (newPosY + gap))
+        , width (px (cellWidth - 2 * gap))
+        , height (px (cellWidth - 2 * gap))
+        , fill Color.green
+        ]
+        []
