@@ -19,55 +19,99 @@ main =
         }
 
 
+cellWidth : Int
 cellWidth =
     30
 
 
-foodLifeLength =
+cellHeight : Int
+cellHeight =
+    30
+
+
+nodeGap : Int
+nodeGap =
+    1
+
+
+foodGap : Int
+foodGap =
+    5
+
+
+foodLifeInTicks : Int
+foodLifeInTicks =
     10
 
 
-type SnakeDirection
+type Direction
     = LEFT
     | RIGHT
     | UP
     | DOWN
 
 
-type alias SnakeNode =
-    ( Int, Int )
+type alias Ticks =
+    Int
+
+
+type alias CellPosX =
+    Int
+
+
+type alias CellPosY =
+    Int
+
+
+type alias Cell =
+    ( CellPosX, CellPosY )
+
+
+type alias SnakeBody =
+    List Cell
+
+
+type alias Food =
+    ( CellPosX, CellPosY, Ticks )
 
 
 type alias Dirty =
     Bool
 
 
+type alias DirtyDirection =
+    ( Direction, Dirty )
+
+
 type alias Model =
     { rows : Int
     , cols : Int
-    , tickTime : Float
-    , dirtyDirection : ( SnakeDirection, Dirty )
-    , snakebody : List SnakeNode
-    , food : ( Float, Float, Int )
+    , tickTime : Time
+    , dirtyDirection : DirtyDirection
+    , snakeBody : SnakeBody
+    , food : Food
     }
 
 
+initModel : Model
 initModel =
     { rows = 10
     , cols = 10
     , tickTime = second
-    , dirtyDirection = ( DOWN, False )
-    , snakebody = [ ( 0, 2 ), ( 0, 1 ), ( 0, 0 ) ]
-    , food = ( 5, 5, foodLifeLength )
+    , dirtyDirection = ( RIGHT, False )
+    , snakeBody = [ ( 2, 0 ), ( 1, 0 ), ( 0, 0 ) ]
+    , food = ( 5, 5, foodLifeInTicks )
     }
 
 
+init : ( Model, Cmd Msg )
 init =
     ( initModel
     , generateNewFood
     )
 
 
+generateNewFood : Cmd Msg
 generateNewFood =
     Random.generate NewFood (Random.pair (Random.int 0 (initModel.cols - 1)) (Random.int 0 (initModel.rows - 1)))
 
@@ -78,11 +122,12 @@ type Msg
     | NewFood ( Int, Int )
 
 
+update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         Tick ->
             ( { model
-                | snakebody = moveSnake model.dirtyDirection model.snakebody model.rows model.cols
+                | snakeBody = moveSnake model.dirtyDirection model.snakeBody model.rows model.cols
                 , dirtyDirection = ( Tuple.first model.dirtyDirection, False )
                 , food = decrementFoodTick model.food
               }
@@ -100,18 +145,21 @@ update msg model =
                 Just newDirection ->
                     ( { model | dirtyDirection = ( newDirection, True ) }, Cmd.none )
 
-        NewFood ( posx, posy ) ->
-            ( { model | food = ( toFloat posx, toFloat posy, foodLifeLength ) }, Cmd.none )
+        NewFood ( cellX, cellY ) ->
+            ( { model | food = ( cellX, cellY, foodLifeInTicks ) }, Cmd.none )
 
 
+isFoodTickZero : Food -> Bool
 isFoodTickZero ( _, _, tick ) =
     tick == 0
 
 
+decrementFoodTick : Food -> Food
 decrementFoodTick ( posx, posy, tick ) =
     ( posx, posy, tick - 1 )
 
 
+getNewDirection : DirtyDirection -> Keyboard.KeyCode -> Maybe Direction
 getNewDirection ( direction, dirty ) code =
     if dirty then
         Nothing
@@ -127,120 +175,123 @@ getNewDirection ( direction, dirty ) code =
         Nothing
 
 
-moveSnake ( direction, _ ) snakebody maxRows maxCols =
+getNewHeadPos : Maybe Cell -> Direction -> Int -> Int -> Maybe Cell
+getNewHeadPos currPos direction maxRows maxCols =
     let
-        newHead pos ( a, b ) =
-            case pos of
-                Just ( x, y ) ->
+        newHeadPos diffCellX diffCellY =
+            case currPos of
+                Just ( currCellPosX, currCellPosY ) ->
                     let
-                        nx =
-                            x + a
+                        newCellPosX =
+                            currCellPosX + diffCellX
 
-                        ny =
-                            y + b
+                        newCellPosY =
+                            currCellPosY + diffCellY
 
-                        nx1 =
-                            if nx >= maxCols then
+                        finalCellPosX =
+                            if newCellPosX >= maxCols then
                                 0
-                            else if nx < 0 then
+                            else if newCellPosX < 0 then
                                 maxCols - 1
                             else
-                                nx
+                                newCellPosX
 
-                        ny1 =
-                            if ny >= maxRows then
+                        finalCellPosY =
+                            if newCellPosY >= maxRows then
                                 0
-                            else if ny < 0 then
+                            else if newCellPosY < 0 then
                                 maxRows - 1
                             else
-                                ny
+                                newCellPosY
                     in
-                    ( nx1, ny1 )
+                    Just ( finalCellPosX, finalCellPosY )
 
                 Nothing ->
-                    ( 0, 0 )
-
-        newSnakeBody ( a, b ) =
-            [ newHead (List.head snakebody) ( a, b ) ] ++ List.take (List.length snakebody - 1) snakebody
+                    Nothing
     in
     case direction of
         LEFT ->
-            newSnakeBody ( 0, -1 )
+            newHeadPos -1 0
 
         RIGHT ->
-            newSnakeBody ( 0, 1 )
+            newHeadPos 1 0
 
         UP ->
-            newSnakeBody ( -1, 0 )
+            newHeadPos 0 -1
 
         DOWN ->
-            newSnakeBody ( 1, 0 )
+            newHeadPos 0 1
 
 
+moveSnake : DirtyDirection -> SnakeBody -> Int -> Int -> SnakeBody
+moveSnake ( direction, _ ) snakeBody maxRows maxCols =
+    let
+        maybeNewHead =
+            getNewHeadPos (List.head snakeBody) direction maxRows maxCols
+    in
+    case maybeNewHead of
+        Just newHead ->
+            [ newHead ] ++ List.take (List.length snakeBody - 1) snakeBody
+
+        Nothing ->
+            snakeBody
+
+
+subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch [ Time.every model.tickTime (\_ -> Tick), Keyboard.downs (\keycode -> KeyDown keycode) ]
 
 
+view : Model -> Html Msg
 view model =
     let
         gameWidth =
             model.cols * cellWidth
 
         gameHeight =
-            model.rows * cellWidth
+            model.rows * cellHeight
     in
     div []
-        [ svg [ viewBox 0 0 gameWidth gameHeight, width (px gameWidth), height (px gameHeight) ]
-            (drawBoard model.snakebody model.food)
+        [ svg [ viewBox 0 0 gameWidth gameHeight, width (px (toFloat gameWidth)), height (px (toFloat gameHeight)) ]
+            (drawGameElements model.snakeBody model.food)
         , pre [] [ text (toString model) ]
         ]
 
 
-drawBoard snakebody food =
-    drawSnake snakebody ++ [ drawFood food ]
+drawGameElements : SnakeBody -> Food -> List (Html Msg)
+drawGameElements snakeBody food =
+    drawSnake snakeBody ++ [ drawFood food ]
 
 
-drawSnake snakebody =
-    List.map drawSnakeNode snakebody
+drawSnake : SnakeBody -> List (Html Msg)
+drawSnake snakeBody =
+    List.map drawSnakeNode snakeBody
 
 
-drawSnakeNode ( row, col ) =
+drawSnakeNode : Cell -> Html Msg
+drawSnakeNode ( cellPosX, cellPosY ) =
+    drawNode cellPosX cellPosY nodeGap Color.black
+
+
+drawFood : Food -> Html Msg
+drawFood ( cellPosX, cellPosY, _ ) =
+    drawNode cellPosX cellPosY foodGap Color.green
+
+
+drawNode : CellPosX -> CellPosY -> Int -> Color -> Html Msg
+drawNode cellPosX cellPosY gap color =
     let
-        nodePosX =
-            col * cellWidth
+        posX =
+            cellPosX * cellWidth
 
-        nodePosY =
-            row * cellWidth
-
-        gap =
-            1
+        posY =
+            cellPosY * cellHeight
     in
     rect
-        [ x (px (nodePosX + gap))
-        , y (px (nodePosY + gap))
-        , width (px (cellWidth - 2 * gap))
-        , height (px (cellWidth - 2 * gap))
-        , fill Color.black
-        ]
-        []
-
-
-drawFood ( posx, posy, _ ) =
-    let
-        newPosX =
-            posx * cellWidth
-
-        newPosY =
-            posy * cellWidth
-
-        gap =
-            5
-    in
-    rect
-        [ x (px (newPosX + gap))
-        , y (px (newPosY + gap))
-        , width (px (cellWidth - 2 * gap))
-        , height (px (cellWidth - 2 * gap))
-        , fill Color.green
+        [ x (px (toFloat (posX + gap)))
+        , y (px (toFloat (posY + gap)))
+        , width (px (toFloat (cellWidth - 2 * gap)))
+        , height (px (toFloat (cellHeight - 2 * gap)))
+        , fill color
         ]
         []
