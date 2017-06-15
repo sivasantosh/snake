@@ -124,14 +124,43 @@ type Msg
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
+    let
+        maybeNewHeadPos =
+            getNextHeadPos (List.head model.snakeBody) (Tuple.first model.dirtyDirection) model.rows model.cols
+
+        isNewHeadOnFood ( foodCellPosX, foodCellPosY, _ ) newHeadPos1 =
+            case newHeadPos1 of
+                Just ( newHeadCellPosX, newHeadCellPosY ) ->
+                    foodCellPosX == newHeadCellPosX && foodCellPosY == newHeadCellPosY
+
+                Nothing ->
+                    False
+
+        snakeWillEatFoodNext =
+            isNewHeadOnFood model.food maybeNewHeadPos
+
+        newHeadPos =
+            case maybeNewHeadPos of
+                Just newHeadPos ->
+                    [ newHeadPos ]
+
+                Nothing ->
+                    []
+
+        newSnakeBody =
+            if snakeWillEatFoodNext then
+                newHeadPos ++ model.snakeBody
+            else
+                moveSnakeTo model.snakeBody newHeadPos
+    in
     case msg of
         Tick ->
             ( { model
-                | snakeBody = moveSnake model.dirtyDirection model.snakeBody model.rows model.cols
-                , dirtyDirection = ( Tuple.first model.dirtyDirection, False )
-                , food = decrementFoodTick model.food
+                | snakeBody = newSnakeBody
+                , dirtyDirection = clearDirty model.dirtyDirection
+                , food = tickFood model.food
               }
-            , if isFoodTickZero model.food then
+            , if isFoodTickZero model.food || snakeWillEatFoodNext then
                 generateNewFood
               else
                 Cmd.none
@@ -154,8 +183,8 @@ isFoodTickZero ( _, _, tick ) =
     tick == 0
 
 
-decrementFoodTick : Food -> Food
-decrementFoodTick ( posx, posy, tick ) =
+tickFood : Food -> Food
+tickFood ( posx, posy, tick ) =
     ( posx, posy, tick - 1 )
 
 
@@ -175,8 +204,8 @@ getNewDirection ( direction, dirty ) code =
         Nothing
 
 
-getNewHeadPos : Maybe Cell -> Direction -> Int -> Int -> Maybe Cell
-getNewHeadPos currPos direction maxRows maxCols =
+getNextHeadPos : Maybe Cell -> Direction -> Int -> Int -> Maybe Cell
+getNextHeadPos currPos direction maxRows maxCols =
     let
         newHeadPos diffCellX diffCellY =
             case currPos of
@@ -223,18 +252,14 @@ getNewHeadPos currPos direction maxRows maxCols =
             newHeadPos 0 1
 
 
-moveSnake : DirtyDirection -> SnakeBody -> Int -> Int -> SnakeBody
-moveSnake ( direction, _ ) snakeBody maxRows maxCols =
-    let
-        maybeNewHead =
-            getNewHeadPos (List.head snakeBody) direction maxRows maxCols
-    in
-    case maybeNewHead of
-        Just newHead ->
-            [ newHead ] ++ List.take (List.length snakeBody - 1) snakeBody
+moveSnakeTo : SnakeBody -> List Cell -> SnakeBody
+moveSnakeTo snakeBody newHead =
+    newHead ++ List.take (List.length snakeBody - 1) snakeBody
 
-        Nothing ->
-            snakeBody
+
+clearDirty : DirtyDirection -> DirtyDirection
+clearDirty ( direction, _ ) =
+    ( direction, False )
 
 
 subscriptions : Model -> Sub Msg
