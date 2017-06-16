@@ -90,6 +90,7 @@ type alias Model =
     , dirtyDirection : DirtyDirection
     , snakeBody : SnakeBody
     , food : Food
+    , isGameOver : Bool
     }
 
 
@@ -101,6 +102,7 @@ initModel =
     , dirtyDirection = ( RIGHT, False )
     , snakeBody = [ ( 2, 0 ), ( 1, 0 ), ( 0, 0 ) ]
     , food = ( 5, 5, foodLifeInTicks )
+    , isGameOver = False
     }
 
 
@@ -128,16 +130,16 @@ update msg model =
         maybeNewHeadPos =
             getNextHeadPos (List.head model.snakeBody) (Tuple.first model.dirtyDirection) model.rows model.cols
 
-        isNewHeadOnFood ( foodCellPosX, foodCellPosY, _ ) newHeadPos1 =
-            case newHeadPos1 of
-                Just ( newHeadCellPosX, newHeadCellPosY ) ->
-                    foodCellPosX == newHeadCellPosX && foodCellPosY == newHeadCellPosY
+        isHeadOnFood ( foodCellPosX, foodCellPosY, _ ) headPos =
+            case headPos of
+                Just ( cellPosX, cellPosY ) ->
+                    foodCellPosX == cellPosX && foodCellPosY == cellPosY
 
                 Nothing ->
                     False
 
         snakeWillEatFoodNext =
-            isNewHeadOnFood model.food maybeNewHeadPos
+            isHeadOnFood model.food getCurrHead
 
         newHeadPos =
             case maybeNewHeadPos of
@@ -152,6 +154,8 @@ update msg model =
                 newHeadPos ++ model.snakeBody
             else
                 moveSnakeTo model.snakeBody newHeadPos
+
+        getCurrHead = List.head model.snakeBody
     in
     case msg of
         Tick ->
@@ -159,6 +163,7 @@ update msg model =
                 | snakeBody = newSnakeBody
                 , dirtyDirection = clearDirty model.dirtyDirection
                 , food = tickFood model.food
+                , isGameOver = isGameOver newSnakeBody
               }
             , if isFoodTickZero model.food || snakeWillEatFoodNext then
                 generateNewFood
@@ -262,9 +267,34 @@ clearDirty ( direction, _ ) =
     ( direction, False )
 
 
+isGameOver : SnakeBody -> Bool
+isGameOver snakeBody =
+    let
+        maybeSnakeHead =
+            List.head snakeBody
+
+        maybeSnakeTail =
+            List.tail snakeBody
+    in
+    case maybeSnakeHead of
+        Just snakeHead ->
+            case maybeSnakeTail of
+                Just snakeTail ->
+                    List.length (List.filter (\node -> node == snakeHead) snakeTail) > 0
+
+                Nothing ->
+                    False
+
+        Nothing ->
+            False
+
+
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Sub.batch [ Time.every model.tickTime (\_ -> Tick), Keyboard.downs (\keycode -> KeyDown keycode) ]
+    if model.isGameOver then
+        Sub.none
+    else
+        Sub.batch [ Time.every model.tickTime (\_ -> Tick), Keyboard.downs (\keycode -> KeyDown keycode) ]
 
 
 view : Model -> Html Msg
@@ -276,11 +306,14 @@ view model =
         gameHeight =
             model.rows * cellHeight
     in
-    div []
-        [ svg [ viewBox 0 0 gameWidth gameHeight, width (px (toFloat gameWidth)), height (px (toFloat gameHeight)) ]
-            (drawGameElements model.snakeBody model.food)
-        , pre [] [ text (toString model) ]
-        ]
+    if model.isGameOver then
+        div [] [ text "Game over" ]
+    else
+        div []
+            [ svg [ viewBox 0 0 gameWidth gameHeight, width (px (toFloat gameWidth)), height (px (toFloat gameHeight)) ]
+                (drawGameElements model.snakeBody model.food)
+            , pre [] [ text (toString model) ]
+            ]
 
 
 drawGameElements : SnakeBody -> Food -> List (Html Msg)
